@@ -1,4 +1,34 @@
 import contextlib
+import dectate
+import attr
+from operator import attrsetter, attgetter
+from abc import Callable
+
+import six
+import attrs
+
+class ContextualOenwershipApplyingMetaclass(type):
+    def __call__(self, *args, **kwargs):
+        cls = super(self, ContextualOenwershipApplyingMetaclass).__call__(*args, **kwargs)
+        for name, value in cls.__dict__.items():
+            if 
+
+@attr.s
+class AddToRegistryAction(dectate.Action):
+    config = {
+        'registry': dict
+    }
+
+    method = attr.ib()
+    action = attr.ib(default=Callable)
+
+    def identity(self):
+        return method, action
+
+
+class Lookup(dectate.App):
+    implementations = dectate.directive(AddToRegistryAction)
+
 
 
 class ImplementationContext(object):
@@ -75,6 +105,7 @@ class ImplementationContext(object):
             yield self.impl
 
 
+
 class _ImplementationBindingMethod(object):
     """bound method equivalent for :class:`ImplementationCooser`
 
@@ -98,25 +129,6 @@ class _ImplementationBindingMethod(object):
         with ctx.use(choice, frozen=True):
             return bound_method(*k, **kw)
 
-
-class _KeyRegistry(dict):
-    def add_implementations(self, keys, val):
-        for key in keys:
-            assert key not in self
-            self[key] = val
-
-
-
-def function_registring_decorator(registry, keys, result):
-    def register_and_return(func):
-        assert not isinstance(func, type(result))
-        registry.add_implementations(keys, func)
-        return result
-    return register_and_return
-        
-
-
-
 class ContextualMethod(object):
     """
     descriptor for implementing context sensitive methods
@@ -136,17 +148,6 @@ class ContextualMethod(object):
                pass
     """
 
-    def __init__(self):
-        self.implementations = _KeyRegistry()
-
-    def __repr__(self):
-        return '<ContextualMethod {implementations}>'.format(
-            implementations=sorted(self.implementations.keys()))
-
-    def _add_implementations(self, keys, func):
-        for key in keys:
-            assert key not in self.implementations
-            self.implementations[key] = func
 
     def implemented_for(self, *implementations):
         """
@@ -156,13 +157,8 @@ class ContextualMethod(object):
         
 
     def external_implementation_for(self, *implementations):
-        def marking_decroator(func):
-            assert _get_method_data(func) is None
-            func._sentaku_method_data = (implementations, self)
-            return func
-        return marking_decroator
-
-    def __get__(self, instance, *_ignored):
+       
+    def __get__(self, instance, owner):
         if instance is None:
             return self
         return _ImplementationBindingMethod(instance=instance, selector=self)
@@ -170,28 +166,6 @@ class ContextualMethod(object):
 
 class ContextualProperty(object):
 
-
-    def __init__(self):
-        self.setters = _KeyRegistry()
-        self.getters = _KeyRegistry()
-
-
-    def setter_implemented_for(self, *implementations):
-        """
-        decorator that registers a new implementation and returns the descriptor
-        """
-        return function_registring_decorator(self.setters, implementations, self)
-
-    def getter_implemented_for(self, *implementations):
-        """
-        decorator that registers a new implementation and returns the descriptor
-        """
-        return function_registring_decorator(self.getters, implementations, self)
-
-
-    #evil hack
-    external_setter_implemented_for = setter_implemented_for
-    external_getter_implemented_for = getter_implemented_for
 
     def __set__(self, instance, value):
 

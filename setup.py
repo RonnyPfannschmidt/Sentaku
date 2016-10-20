@@ -12,6 +12,10 @@ setup(name="sentaku",
       url="https://github.com/RonnyPfannschmidt/Sentaku",
       packages=["sentaku"],
       package_dir={'': 'src'},
+      install_requires=[
+        'six',
+        'dectate',
+      ],
       setup_requires=[
           'setuptools_scm',
       ],
