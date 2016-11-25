@@ -13,6 +13,7 @@ stdenv.mkDerivation rec {
     sqlite
     setuptools_scm
     pip
+    tox
     wheel
     pytest
     flake8
@@ -27,9 +28,7 @@ stdenv.mkDerivation rec {
   shellHook=''
   export PS1="(${name}) \w \\$ \[$(tput sgr0)\]"
   export PYTHONPATH="$PYTHONPATH:./src"
-  test() {
-    py.test
-  }
+
 
   build_docs() {
     sphinx-build -b html -d build/sphinx-doctrees docs build/htmldocs
@@ -53,7 +52,7 @@ stdenv.mkDerivation rec {
 
   test_clean() {
     clean
-    test
+    py.test
   }
 
   '';
