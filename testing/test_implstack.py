@@ -1,10 +1,11 @@
 import pytest
+
 from sentaku.chooser import ChooserStack
 
 
 @pytest.fixture
 def chooser():
-    return ChooserStack(None)
+    return ChooserStack.from_elements(None)
 
 
 def test_empty(chooser):
@@ -29,7 +30,7 @@ def tet_overflow(chooser):
     def nest(n=21):
         if n:
             with chooser.pushed([1]):
-                nest(n=n-1)
+                nest(n=n - 1)
     with pytest.raises(OverflowError):
         nest()
 

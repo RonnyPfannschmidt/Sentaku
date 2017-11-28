@@ -1,7 +1,10 @@
 import contextlib
-import attr
-import dectate
 from collections import defaultdict
+
+import attr
+
+import dectate
+
 from .chooser import ChooserStack
 
 METHOD_DATA_KEY = 'sentaku_method_data'
@@ -42,7 +45,8 @@ class ImplementationContext(dectate.App):
 
     implementations = attr.ib()
     implementation_chooser = attr.ib(
-        default=attr.Factory(ChooserStack), convert=ChooserStack)
+        default=attr.Factory(ChooserStack),
+        convert=ChooserStack.from_elements)
     strict_calls = attr.ib(default=False)
 
     external_for = dectate.directive(ImplementationRegistrationAction)
@@ -52,7 +56,7 @@ class ImplementationContext(dectate.App):
         return cls(
             implementations=implementations,
             implementation_chooser=default_choices,
-            )
+        )
 
     @property
     def impl(self):
@@ -124,6 +128,7 @@ class _ImplementationBindingMethod(object):
             return bound_method(*k, **kw)
 
 
+@attr.s(cmp=False)
 class ContextualMethod(object):
     """
     descriptor for implementing context sensitive methods
@@ -143,8 +148,6 @@ class ContextualMethod(object):
                pass
     """
     # todo - turn into attrs class once attribute ancoring is implemented
-    def __repr__(self):
-        return '<ContextualMethod>'
 
     def external_implementation_for(self, implementation):
         return ImplementationContext.external_for(self, implementation)

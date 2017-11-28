@@ -5,14 +5,30 @@ and fallback preferences
 based on the contexts pushed/poped from the stack it will choose
 context roots and help picking implementations
 """
-from contextlib import contextmanager
 from collections import namedtuple
+from contextlib import contextmanager
+
+import attr
+
+
 LIMIT = 20
 
 ImplementationChoice = namedtuple('ImplementationChoice', 'key, value')
 
 
-class Chooser(namedtuple('Chooser', 'elements, previous, frozen')):
+@attr.s(frozen=True)
+class NullChooser(object):
+    frozen = False
+
+    def choose(self, *_, **__):
+        raise LookupError('No choice possible without valid context')
+
+
+@attr.s(frozen=True)
+class Chooser(object):
+    elements = attr.ib()
+    previous = attr.ib(default=NullChooser())
+    frozen = attr.ib(default=False)
 
     @classmethod
     def make(cls, current, elements, frozen):
@@ -36,13 +52,6 @@ class Chooser(namedtuple('Chooser', 'elements, previous, frozen')):
         raise LookupError(self.elements, choose_from.keys())
 
 
-class NullChooser(object):
-    frozen = False
-
-    def choose(self, *_, **__):
-        raise LookupError('No choice possible without valid context')
-
-
 def chain(element):
     elements = []
     while not isinstance(element, NullChooser):
@@ -52,15 +61,16 @@ def chain(element):
     return elements
 
 
+@attr.s
 class ChooserStack(object):
+    current = attr.ib(default=NullChooser())
 
-    def __init__(self, default_elements=None):
+    @classmethod
+    def from_elements(cls, default_elements):
         if default_elements is not None:
-            self.current = Chooser(
-                elements=default_elements,
-                previous=NullChooser(), frozen=False)
+            return cls(Chooser(elements=default_elements))
         else:
-            self.current = NullChooser()
+            return cls()
 
     def __repr__(self):
         return '<ICS {chain}>'.format(chain=chain(self.current))
