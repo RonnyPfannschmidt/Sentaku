@@ -10,7 +10,7 @@ from collections import namedtuple
 
 LIMIT = 20
 
-ImplementationChoice = namedtuple("ImplementationChoice", "key, value")
+ImplementationChoice = namedtuple('ImplementationChoice', 'key, implementation, is_fallback')
 
 
 class Chooser(namedtuple("Chooser", "elements, previous, frozen")):
@@ -34,7 +34,7 @@ class Chooser(namedtuple("Chooser", "elements, previous, frozen")):
 
         for choice in self.elements:
             if choice in choose_from:
-                return ImplementationChoice(choice, choose_from[choice])
+                return ImplementationChoice(choice, choose_from[choice], False)
         raise LookupError(self.elements, choose_from.keys())
 
 
@@ -74,9 +74,36 @@ class ChooserStack(object):
         """
         return self.current.choose(choose_from)
 
+    def choose_or_fallback(self, choose_from, fallback):
+        try:
+            return self.choose(choose_from)
+        except LookupError:
+            if fallback is None:
+                raise
+            return fallback
+
     @contextmanager
     def pushed(self, new, frozen=False):
         self.current = Chooser.make(self.current, new, frozen)
+        try:
+            if len(chain(self.current)) > LIMIT:
+                raise OverflowError("stack depth exceeded")
+            yield
+        finally:
+            self.current = self.current.previous
+
+    @contextmanager
+    def pushed_preferred(self, new_preferences):
+        assert set(new_preferences).intersection(self.current.elements)
+        new = [
+            x for x in self.current.elements
+            if x in new_preferences
+        ] + [
+            x for x in self.current.elements
+            if x not in new_preferences
+        ]
+
+        self.current = Chooser.make(self.current, new, False)
         try:
             if len(chain(self.current)) > LIMIT:
                 raise OverflowError("stack depth exceeded")

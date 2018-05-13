@@ -2,15 +2,9 @@ import contextlib
 import attr
 import dectate
 from collections import defaultdict
-from .chooser import ChooserStack
+from .chooser import ChooserStack, ImplementationChoice
 
 METHOD_DATA_KEY = "sentaku_method_data"
-
-
-@contextlib.contextmanager
-def _use_maybe_strict(ctx, impl):
-    with ctx.use(impl, frozen=ctx.strict_calls) as impl:
-        yield impl
 
 
 @attr.s
@@ -24,6 +18,23 @@ class ImplementationRegistrationAction(dectate.Action):
 
     def perform(self, obj, methods):
         methods[self.method][self.implementation] = obj
+
+
+@attr.s
+class FallbackRegistrationAction(dectate.Action):
+    config = {
+        'fallbacks': dict
+    }
+
+    method = attr.ib()
+    implementation = attr.ib()
+
+    def identifier(self, fallbacks):
+        return self.method
+
+    def perform(self, obj, fallbacks):
+        fallbacks[self.method] = ImplementationChoice(
+            self.implementation, obj, is_fallback=True)
 
 
 @attr.s(hash=False)
@@ -51,6 +62,7 @@ class ImplementationContext(dectate.App):
     strict_calls = attr.ib(default=False)
 
     external_for = dectate.directive(ImplementationRegistrationAction)
+    fallback_for = dectate.directive(FallbackRegistrationAction)
 
     @classmethod
     def with_default_choices(cls, implementations, default_choices, **kw):
@@ -63,12 +75,24 @@ class ImplementationContext(dectate.App):
     @property
     def impl(self):
         """the currently active implementation"""
-        return self.implementation_chooser.choose(self.implementations).value
+        return self.implementation_chooser.choose(self.implementations).implementation
 
     def _get_implementation_for(self, key):
         self.commit()
         implementation_set = self.config.methods[key]
+
         return self.implementation_chooser.choose(implementation_set)
+
+    def call_implementation_for(self, key, instance, args=(), kwargs=None):
+        self.commit()
+        kwargs = kwargs or {}
+        implementation_set = self.config.methods[key]
+        fallback = self.config.fallbacks.get(key)
+        choice = self.implementation_chooser.choose_or_fallback(
+            implementation_set, fallback)
+        bound_method = choice.implementation.__get__(instance, type(instance))
+        with self._use_for_call(choice.key, choice.is_fallback):
+            return bound_method(*args, **kwargs)
 
     @classmethod
     def from_instances(cls, instances, **kw):
@@ -109,6 +133,25 @@ class ImplementationContext(dectate.App):
         ):
             yield self.impl
 
+    @contextlib.contextmanager
+    def use_strict(self, impl):
+        with self.use(impl, frozen=True) as imp:
+            yield imp
+
+    @contextlib.contextmanager
+    def use_preferred(self, impl):
+        with self.implementation_chooser.pushed_preferred([impl]) as imp:
+            yield imp
+
+    @contextlib.contextmanager
+    def _use_for_call(self, impl, is_fallback):
+        if self.strict_calls or is_fallback:
+            ctx = self.use_strict
+        else:
+            ctx = self.use_preferred
+        with ctx(impl) as imp:
+            yield imp
+
 
 @attr.s
 class _ImplementationBindingMethod(object):
@@ -124,11 +167,8 @@ class _ImplementationBindingMethod(object):
     selector = attr.ib()
 
     def __call__(self, *k, **kw):
-        ctx = self.instance.context
-        choice, implementation = ctx._get_implementation_for(self.selector)
-        bound_method = implementation.__get__(self.instance, type(self.instance))
-        with _use_maybe_strict(ctx, choice):
-            return bound_method(*k, **kw)
+        return self.instance.context.call_implementation_for(
+            self.selector, self.instance, k, kw)
 
 
 class ContextualMethod(object):
@@ -176,21 +216,11 @@ class ContextualProperty(object):
         return ImplementationContext.external_for(self.getter, implementation)
 
     def __set__(self, instance, value):
-
-        ctx = instance.context
-        choice, implementation = ctx._get_implementation_for(self.setter)
-
-        bound_method = implementation.__get__(instance, type(instance))
-        with _use_maybe_strict(ctx, choice):
-            return bound_method(value)
+        return instance.context.call_implementation_for(
+            self.setter, instance, (value, ))
 
     def __get__(self, instance, owner):
         if instance is None:
             return self
 
-        ctx = instance.context
-        choice, implementation = ctx._get_implementation_for(self.getter)
-
-        bound_method = implementation.__get__(instance, type(instance))
-        with _use_maybe_strict(ctx, choice):
-            return bound_method()
+        return instance.context.call_implementation_for(self.getter, instance)

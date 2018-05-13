@@ -1,6 +1,7 @@
 from sentaku.context import ImplementationContext, ContextualProperty, ContextualMethod
 from sentaku import Element
 
+import attr
 import pytest
 
 
@@ -37,7 +38,7 @@ def method_standin(self, value=None):
     ]
 )
 def ctx(request):
-    return LocalContext.from_instances([1, "a"], strict_calls=request.param)
+    return LocalContext.from_instances([1, 'a', object], strict_calls=request.param)
 
 
 @pytest.fixture
@@ -63,3 +64,23 @@ def test_set_property(ctx, elem, impl):
 def test_method(ctx, elem, impl):
     with ctx.use(impl):
         elem.method()
+
+
+@attr.s
+class FallbackElement(Element):
+    fallback_triggered = attr.ib(default=False)
+
+    method = ContextualMethod()
+
+
+@LocalContext.fallback_for(FallbackElement.method, type)
+def fallback_type(self):
+    self.fallback_triggered = True
+    return self.impl
+
+
+def test_fallback(ctx):
+    elem = FallbackElement(ctx)
+    res = elem.method()
+
+    assert res is object

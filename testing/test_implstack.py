@@ -38,7 +38,7 @@ def tet_overflow(chooser):
 def test_choose(chooser):
     with chooser.pushed([1, 2]):
         res = chooser.choose({1: "a"})
-    assert res == (1, "a")
+    assert res == (1, 'a', False)
 
 
 def test_choose_missing(chooser):
