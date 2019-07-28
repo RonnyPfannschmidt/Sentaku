@@ -51,12 +51,15 @@ class Search(sentaku.Element):
 def search_browser(self, text):
     """do a slow search via the website and return the first match"""
     self.impl.get(self.base_url)
-
+    # get the search box
     search_div = self.impl.find_element_by_id("search")
-    search_term = search_div.find_element_by_id("term")
-    search_term.send_keys(text)
-    search_div.find_element_by_id("submit").click()
-    e = self.impl.find_element_by_css_selector("table.list tr td a")
+    # input the search term
+    search_div.send_keys(text)
+    # click the search button to initiate search
+    search_div.find_element_by_xpath(
+        '//*[@id="content"]//div//button[contains(@type, "submit")]').click()
+    # get the first element from the list of found items
+    e = self.impl.find_element_by_xpath('//*[@id="content"]//li[1]/a')
     return e.get_attribute("href")
 
 
